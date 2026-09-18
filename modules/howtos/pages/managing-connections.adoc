@@ -1,0 +1,213 @@
+= Managing Connections
+:description: This section describes how to connect the {name-sdk} to an Operational Insights cluster.
+:page-toclevels: 2
+
+
+// Note to editors
+// 
+// This page pulls in content from -sdk-common-
+// and code samples from -example-dir-
+// 
+// It can be seen built at wwww.
+
+
+[abstract]
+{description}
+It contains best practices as well as information on TLS/SSL and advanced connection options.
+
+
+Our xref:hello-world:start-using-sdk.adoc[Getting Started pages] cover the basics of making a connection to an Operational Insights cluster.
+// (Capella or self-managed).
+This page is a wider look at the topic.
+
+
+== Connecting to a Cluster
+
+The examples below use these imports:
+
+[source,java]
+----
+import com.couchbase.analytics.client.java.Cluster;
+import com.couchbase.analytics.client.java.Credential;
+import com.couchbase.analytics.client.java.QueryResult;
+----
+
+A connection to an Operational Insights cluster is represented by a `Cluster` object.
+A `Cluster` provides access to databases, scopes, and collections, as well as various Insights services and management interfaces.
+The simplest way to create a `Cluster` object is to call `Cluster.newInstance()` with a <<connection-strings, connection string>>, username, and password:
+
+
+
+[source,java]
+----
+public class Example {
+  public static void main(String[] args) {
+    var connectionString = "https://192.168.5.5:18095";
+    var username = "...";
+    var password = "...";
+
+    try (Cluster cluster = Cluster.newInstance(
+      connectionString,
+      Credential.of(username, password)
+    )) {
+        // Interact with the cluster here
+    }
+  }
+}
+----
+
+WARNING: The above example uses a `try-with-resources` block to ensure the `Cluster` instance gets closed at the end.
+It's important to either use a `try-with-resources` block, or make sure to call `cluster.close()` when you're done with the cluster.
+
+////
+NOTE: Capella's root certificate is *not* signed by a well known Certificate Authority.
+However, the certificate is bundled with the SDK, and is automatically trusted unless you specify a different certificate to trust.
+////
+
+== Connection Strings
+
+
+include::{version-common}@operational-insights-sdk:shared:partial$connstr.adoc[tag=more-connstr]
+
+
+
+
+
+
+
+
+
+== Authentication by Credential
+
+Similarly to the `Authenticator` abstraction in Couchbase Operational SDKs, Analytics SDKs use a `Credential` abstraction covering regular password authentication (Basic Access Authentication), JSON Web Tokens (JWT), and Client Certificates through mTLS.
+
+Basic Access Authentication is shown in the example <<#connecting-to-a-cluster,above>>.
+
+
+=== JSON Web Tokens (JWT)
+
+JWT is supported with Operational Insights Server 2.2+.
+
+[source,java]
+----
+var credential = Credential.ofJwt("...");
+var cluster = Cluster.newInstance(connectionString, credential);
+----
+
+Typically, JWTs have a short validity period.
+Renew JWTs with `cluster.credential(freshJwtCredential)`
+
+
+=== Certificate Authentication
+
+Certificate authentication is supported with Operational Insights Server 2.2+.
+A conceptual and architectural overview of Enterprise Analytics's support of X.509 certificates is provided in the xref:{version-server}@server:learn:security/certificates.adoc[Server certificates docs].
+Practical information on handling certificates can be found in the xref:{version-ea}@enterprise-analytics:manage:manage-security/manage-certificates.adoc[Enterprise Analytics certificates docs].
+
+The Analytics SDK authenticates the client during the TLS handshake.
+The SDK reads the certificate and private key from a `PKCS#12` file:
+
+[source,java]
+----
+var credential = Credential.fromKeyStore(
+    Paths.get("path/to/client-cert-and-key.p12"),
+    password
+);
+var cluster = Cluster.newInstance(connectionString, credential);
+----
+
+
+== Certificate Authority
+
+By default, the Analytics SDK trusts the same well-known Certificate Authorities (CAs) as the JVM, plus the Couchbase Capella CA.
+This works for most deployments.
+
+If you need to trust a different CA, or want to trust only a specific CA, you can override the default trust settings by telling the Analytics SDK which CA certificates to trust.
+
+[source,java]
+----
+var cluster = Cluster.newInstance(
+  connectionString,
+  credential,
+  options -> options
+    .security(sec -> sec.trustOnlyPemFile(Paths.get("path/to/ca.pem")))
+);
+----
+
+
+// For Columnar, as for all Capella products, connection must be made with Transport Layer Security (TLS) -- for full encryption of client-side traffic --
+// for which the `couchbases://` schema is used as the root of the connection string (note the trailing *s*).
+
+////
+==== Without Load Balancer
+
+.Simple connection string
+----
+https://192.168.5.5:18095
+----
+
+.Simple connection string without TLS (local testing)
+----
+http://192.168.5.5:8095
+----
+
+
+==== With Load Balancer
+
+.Simple connection string
+----
+https://192.168.5.5:443
+----
+
+.Simple connection string without TLS (local testing)
+----
+http://192.168.5.5:80
+----
+////
+
+
+////
+In a production environment, your connection string should include the addresses of multiple server nodes in case some are currently unavailable.
+Multiple addresses may be specified in a connection string by delimiting them with commas:
+
+.Connection string with two seed nodes
+----
+nodeA.example.com,nodeB.example.com
+----
+
+TIP: You don't need to include the address of every node in the cluster.
+The client fetches the full address list from the first node it is able to contact.
+////
+
+
+////
+Any client setting with a system property name may also be specified as a connection string parameter (without the `com.couchbase.env.` prefix).
+
+WARNING: When creating a `Cluster` using a custom `ClusterEnvironment`, *_connection string parameters are ignored_*, since client settings are frozen when the cluster environment is built.
+////
+
+
+
+
+////
+=== Connection Lifecycle
+
+Most of the high-level classes in the Scala SDK are designed to be safe for concurrent use by multiple threads.
+You will get the best performance if you share and reuse instances of `ClusterEnvironment`, `Cluster`, `Bucket`, `Scope`, and `Collection`, all of which are thread-safe.
+
+We recommend creating a single `Cluster` instance when your application starts up, and sharing this instance throughout your application.
+If you know at startup time which buckets, scopes, and collections your application will use, we recommend obtaining them from the `Cluster` at startup time and sharing those instances throughout your application as well.
+
+Before your application stops, gracefully shut down the client by calling the `disconnect()` method of each `Cluster` you created.
+If you created any `ClusterEnvironment` instances, call their `shutdown()` method after disconnecting the associated clusters.
+////
+
+
+
+
+== Local Development
+
+
+We strongly recommend that the client and server xref:project-docs:compatibility.adoc#network-requirements[are in the same LAN-like environment] (e.g. AWS Region).
+// As this may not always be possible during development, read the guidance on working with xref:ref:client-settings.adoc#commonly-used-options[constrained network environments].
+// More details on connecting your client code to Couchbase Capella can be found xref:cloud:clouds:connect-an-sdk.adoc#connecting-your-sdk-to-capella[in the Capella Operational docs].

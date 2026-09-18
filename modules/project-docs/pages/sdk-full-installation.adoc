@@ -1,0 +1,117 @@
+= Maven Coordinates
+:page-toclevels: 2
+:description: How to get the {name-sdk} from Maven Central.
+:page-partial:
+
+
+[abstract]
+{description}
+
+
+
+== Getting the SDK
+
+
+Couchbase publishes all stable artifacts to https://central.sonatype.com/artifact/com.couchbase.client/couchbase-analytics-java-client[Maven Central].
+
+Use your favorite dependency management tool to include the SDK in your project:
+
+[{tabs}]
+====
+Maven::
++
+--
+For https://maven.apache.org[Maven], add this to the `dependencies` section of your project's `pom.xml` file:
+
+[source,xml,subs="attributes+"]
+----
+<dependency>
+    <groupId>com.couchbase.client</groupId>
+    <artifactId>couchbase-operational-insights-java-client</artifactId>
+    <version>{sdk_current_version}</version>
+</dependency>
+----
+Refer to the https://maven.apache.org/guides/introduction/introduction-to-the-pom.html/[Maven Documentation] for more information regarding the structure of the `pom.xml` file.
+--
+Gradle (Kotlin)::
++
+--
+For a https://gradle.org/[Gradle] script written in Kotlin, add this line to the `dependencies` section of your project's `build.gradle.kts` file:
+
+[source,kotlin,subs="attributes+"]
+----
+implementation("com.couchbase.client:couchbase-operational-insights-java-client:{sdk_current_version}")
+----
+--
+Gradle (Groovy)::
++
+--
+For a https://gradle.org/[Gradle] script written in Groovy, add this line to the `dependencies` section of your project's `build.gradle` file:
+
+[source,groovy,subs="attributes+"]
+----
+implementation 'com.couchbase.client:couchbase-operational-insights-java-client:{sdk_current_version}'
+----
+--
+====
+
+
+[snapshots]
+== Using a Snapshot Version
+
+Couchbase publishes pre-release snapshot artifacts to the Sonatype OSS Snapshot Repository.
+If you wish to use a snapshot version, you'll need to tell your build tool about this repository.
+
+[{tabs}]
+====
+Maven::
++
+--
+.`*pom.xml*`
+[source,xml]
+----
+<repositories>
+  <repository>
+    <name>Central Portal Snapshots</name>
+    <id>central-portal-snapshots</id>
+    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+    <releases><enabled>false</enabled></releases>
+    <snapshots><enabled>true</enabled></snapshots>
+  </repository>
+</repositories>
+----
+--
+Gradle (Kotlin)::
++
+--
+.`*build.gradle.kts*`
+[source,kotlin]
+----
+repositories {
+    mavenCentral()
+    maven {
+        url = uri("https://central.sonatype.com/repository/maven-snapshots/")
+        mavenContent { snapshotsOnly() }
+    }
+}
+----
+--
+Gradle (Groovy)::
++
+--
+.`*build.gradle*`
+[source,groovy]
+----
+repositories {
+    mavenCentral()
+    maven {
+        url "https://central.sonatype.com/repository/maven-snapshots/"
+        mavenContent { snapshotsOnly() }
+    }
+}
+----
+--
+====
+
+CAUTION: Couchbase does not provide support for snapshot artifacts.
+We don't recommend using them unless you're working closely with Couchbase Support to verify a particular issue has been resolved prior to release.

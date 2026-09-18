@@ -1,0 +1,133 @@
+= {name-sdk} Quickstart Guide
+:page-toclevels: 2
+:description: Install, connect, try. A quick start guide to get you up and running with Operational Insights and the {name-sdk}.
+
+[abstract]
+{description}
+
+
+
+
+
+include::analytics-sdk:shared:partial$start-using-sdk.adoc[tag=intro]
+
+
+== Before You Start
+
+Install and configure an xref:enterprise-analytics:intro:intro.adoc[Operational Insights Cluster].
+
+
+// After creating the cluster, add your IP address to the list of allowed IP addresses.
+// TODO: Link to https://docs.couchbase.com/columnar/admin/ip-allowed-list.html
+
+[#minimum-java-version]
+=== Minimum Java Version
+
+The {name-sdk} requires Java 8 or later.
+We recommend using the most recent long-term support (LTS) version of OpenJDK.
+
+TIP: Remember to keep your Java installation up to date with the latest patches.
+
+[maven-project-template]
+== Maven Project Template
+
+The SDK's source code repository includes an 
+https://github.com/couchbaselabs/couchbase-analytics-jvm-clients/tree/main/couchbase-analytics-java-client/examples/maven-project-template[example Maven project]
+you can copy to get started quickly.
+
+== Adding the SDK to an Existing Project
+
+Declare a dependency on the SDK using its xref:project-docs:sdk-full-installation.adoc[].
+
+To see log messages from the SDK, xref:howtos:logging.adoc[include an SLF4J binding in your project].
+
+[quickstart]
+== Connecting and Executing a Query
+
+
+The 2.2 Operational Insights Enterprise Cluster introduced support for JWT and client certificate authentication, as well as a new poll-based {async-server-api-feature-name} that uses request handles to fetch results.
+This API eliminates the need for long-running server connections.
+
+The examples in this first section of the page are for the standard API, working with all releases of Operational Insights (with {async-server-api-feature-name} examples following in the <<#server-asynchronous-api,Server Async section>>).
+Note, you can still use this API with 2.2+ releases of Operational Insights, in addition to the new API.
+
+
+=== Server Synchronous Request API
+
+[source,java]
+----
+import com.couchbase.analytics.client.java.Cluster;
+import com.couchbase.analytics.client.java.Credential;
+import com.couchbase.analytics.client.java.QueryResult;
+
+import java.util.List;
+
+public class Example {
+  public static void main(String[] args) {
+    var connectionString = "https://<your_hostname>:" + PORT;
+    var username = "...";
+    var password = "...";
+
+    try (Cluster cluster = Cluster.newInstance(
+      connectionString,
+      Credential.of(username, password),
+      // The third parameter is optional.
+      // This example sets the default query timeout to 2 minutes.
+      clusterOptions -> clusterOptions
+        .timeout(it -> it.queryTimeout(Duration.ofMinutes(2)))
+    )) {
+
+      // Execute a query and buffer all result rows in client memory.
+      QueryResult result = cluster.executeQuery("select 1");
+      result.rows().forEach(row -> System.out.println("Got row: " + row));
+
+      // Execute a query and process rows as they arrive from server.
+      cluster.executeStreamingQuery(
+          "select 1",
+          row -> System.out.println("Got row: " + row)
+      );
+
+      // Execute a streaming query with positional arguments.
+      cluster.executeStreamingQuery(
+        "select ?=1",
+        row -> System.out.println("Got row: " + row),
+        options -> options
+          .parameters(List.of(1))
+      );
+
+      // Execute a streaming query with named arguments.
+      cluster.executeStreamingQuery(
+        "select $foo=1",
+        row -> System.out.println("Got row: " + row),
+        options -> options
+          .parameters(Map.of("foo", 1))
+      );
+    }
+  }
+}
+----
+
+
+=== Connection String
+
+The `connStr` in the above example should take the form of "https://<your_hostname>:" + PORT 
+
+include::{version-common}@analytics-sdk:shared:partial$connstr.adoc[tag=connstr]
+
+
+[[server-asynchronous-api]]
+=== {async-server-api-feature-name}
+
+Enterprise Analytics 2.2 introduces a {async-server-api-feature-name}.
+The SDK sends a request, polls for results, and then fetches once the result is available.
+
+.Server Asynchronous API Example
+[source,java]
+----
+include::devguide:example$java/ServerAsync.java[indent=0,tag=server-async]
+----
+
+
+== Migration from Row-Based Analytics
+
+include::{version-common}@analytics-sdk:shared:partial$migration.adoc[tag=migration]

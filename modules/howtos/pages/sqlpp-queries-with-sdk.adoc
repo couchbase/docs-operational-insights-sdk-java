@@ -1,0 +1,139 @@
+= Querying with {sqlpp}
+:description: You can query for documents in Couchbase using the {sqlpp} query language -- a language based on SQL, but designed for structured and flexible JSON documents.
+:page-toclevels: 2
+
+
+[abstract]
+{description}
+
+
+
+On this page we dive straight into using the Query Service API from the {name-sdk}.
+For a deeper look at the concepts, to help you better understand the Query Service, and the {sqlpp} language, see the links in the <<further-information,Further Information>> section at the end of this page.
+
+
+// Here we show queries against the Travel Sample collection, at cluster and scope level,
+// and give links to information on adding other collections to your data.
+// kafka
+// postgres
+// capella
+
+
+== Before You Start
+
+
+This page assumes that you have xref:hello-world:start-using-sdk.adoc[installed the {name-sdk}], added your IP address to the allowlist, and xref:analytics:manage:manage-nodes/create-cluster.adoc#cluster[created an Operational Insights cluster].
+
+Create a collection to work upon by xref:operational-insights:intro:connecting-to-data-sources.adoc#import-the-travel-sample-collections[importing the travel-sample dataset] into your cluster.
+
+
+== Querying Your Dataset
+
+[TIP]
+.API Enhancements & Async
+====
+The 2.2 Operational Insights Enterprise Cluster introduced support for JWT and client certificate authentication, as well as a new poll-based {async-server-api-feature-name} that uses request handles to fetch results.
+This API eliminates the need for long-running server connections.
+
+The examples in this first section of the page are for the standard API, working with all releases of Operational Insights (with {async-server-api-feature-name} examples following in the <<#server-asynchronous-api,Server Async section>>).
+Note, you can still use this API with 2.2+ releases of Operational Insights, in addition to the new API.
+====
+
+
+Execute a query and buffer all result rows in client memory:
+
+.Scope Level
+[source,java]
+----
+QueryResult result = scope.executeQuery("select 1");
+result.rows().forEach(row -> System.out.println("Got row: " + row));
+----
+
+.Cluster Level
+[source,java]
+----
+QueryResult result = cluster.executeQuery("select 1");
+result.rows().forEach(row -> System.out.println("Got row: " + row));
+----
+
+
+=== Streaming Queries
+
+If you can buffer all of the results in memory, then `executeQuery()` is the simplest method to use,
+but frequently the data size will be too large for this -- or you need to plan for that possibility.
+Use `executeStreamingQuery()` to execute a query statement and pass the resultant rows to the given `rowAction` callback, one by one, as they arrive from the server.
+
+The callback action is guaranteed to execute in the same thread (or virtual thread) that called this method.
+If the callback throws an exception, the query is cancelled and the exception is re-thrown by this method.
+See the link:++https://docs.couchbase.com/sdk-api/couchbase-analytics-java-client/com/couchbase/analytics/client/java/Scope.html#executeStreamingQuery(java.lang.String,java.util.function.Consumer,java.util.function.Consumer)++[API reference] for more details.
+
+
+=== Positional and Named Parameters
+
+Supplying parameters as individual arguments to the query allows the query engine to optimize the parsing and planning of the query. 
+You can either supply these parameters by name or by position.
+
+Execute a streaming query with positional arguments:
+
+.Positional Parameters
+[source,java]
+----
+cluster.executeStreamingQuery(
+  "select ?=1",
+  row -> System.out.println("Got row: " + row),
+  options -> options
+    .parameters(List.of(1))
+);
+----
+
+Execute a streaming query with named arguments:
+
+.Named Parameters
+[source,java]
+----
+cluster.executeStreamingQuery(
+  "select $foo=1",
+  row -> System.out.println("Got row: " + row),
+  options -> options
+    .parameters(Map.of("foo", 1))
+);
+----
+
+
+[[server-asynchronous-api]]
+== {async-server-api-feature-name}
+
+Enterprise Analytics Server 2.2 adds a {async-server-api-feature-name}.
+The SDK will send a request, poll for results, and then fetch once the result is available.
+
+
+.Server Asynchronous API Example
+[source,java]
+----
+include::devguide:example$java/ServerAsync.java[indent=0,tag=server-async]
+----
+
+
+== Query Options
+
+The query service accepts various options to customize your query.
+The following table lists them all:
+
+.Available Query Options
+[options="header"]
+|====
+| Name       | Description
+| `clientContextId(@Nullable String clientContextId)` | An optional identifier for the query.
+| `parameters(@Nullable Map<String,?> namedParameters)` | Specifies the values to use for named placeholders in the query statement.
+| `parameters(@Nullable List<?> positionalParameters)` |  Allows setting positional arguments for a parameterized query.
+| `deserializer(@Nullable Deserializer deserializer)` | Sets the deserializer used by `Row.as(java.lang.Class<T>)` to convert query result rows into Java objects. If not specified, defaults to the cluster's default deserializer.
+| `scanWait(@Nullable Duration scanWait)` | Allows customizing how long the query engine is willing to wait until the index catches up to whatever scan consistency is asked for in this query.
+| `scanConsistency(@Nullable ScanConsistency scanConsistency)` |  Sets a different scan consistency for this query.
+| `readOnly(@Nullable Boolean readOnly)` | Specifies that this query should be executed in read-only mode, disabling the ability for the query to make any changes to the data.
+|====
+
+
+== Further Information
+
+The xref:analytics:sqlpp:1_intro.adoc[{sqlpp} for Analytics Reference]
+offers a complete guide to the {sqlpp} language for both of our analytics services, including all of the latest additions.

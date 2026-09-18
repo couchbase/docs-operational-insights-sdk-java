@@ -1,0 +1,720 @@
+= Error Messages
+:description: The standardized error codes and eceptions returned by the Operational Insights Java SDK, from cluster connection to {sqlpp} query.
+:nav-title: Error Codes
+
+[abstract]
+{description}
+
+// include::{version-common}@sdk:shared:partial$error-ref.adoc[tag=intro]
+
+// include::{version-common}@analytics-sdk:shared:partial$error-ref.adoc[tag=intro]
+
+
+An `AnalticsException` is thrown when an interaction with the Analytics cluster fails.
+
+
+== InsightsException
+
+An `AnalticsException` is thrown when an interaction (or attempted interaction) with the Insights cluster fails.
+
+
+
+
+
+
+== Other Analytics Error Codes
+
+For other errors the {name-sdk} passes through the Analytics error codes from Operational Insights.
+
+For a full list of these error codes, see xref:{version-server}@server:analytics:error-codes.adoc[Analytics Error Codes].
+
+
+////
+
+The {name-sdk} passes through the Analytics error codes from Enterprise Analytics.
+
+For a full list of error codes, see xref:{version-server}@server:analytics:error-codes.adoc[Analytics Error Codes].
+////
+
+
+
+=== InvalidCredentialException
+
+Thrown if the Analytics Service returns HTTP status code 401 or analytics error code 20000
+
+class InvalidCredentialError(AnalyticsError):
+    """
+     Indicates the analytics service returned an HTTP status code 401 or analytics
+     error code 20000
+    """
+
+TimeoutException
+Thrown if the SDK detects a client-side timeout, or the server returns analytics error code 21002 (server-side timeout).
+
+NOTE: This is the user’s only indication that a request is potentially retriable, since the SDK automatically retries retriable operations until the timeout duration elapses.
+
+class TimeoutError(AnalyticsError):
+    """
+     Indicates the SDK has detected a client-side timeout or the analytics service
+     returned error code 21002.
+    """
+
+QueryException
+Thrown if the analytics service returns a response with an error code other than 20000 or 21002.
+
+The QueryException should provide two properties:
+code (integer): error code from analytics service
+serverMessage (string): human readable message from analytics service
+
+NOTE: The API documentation for this exception should indicate most users are not expected to take programmatic action based on the error code, but the code is programmatically accessible to support advanced use cases.
+
+class QueryError(AnalyticsError):
+    """
+     Indicates the analytics service return a response with an error code other than
+     20000 or 21002.
+    """
+    @property
+    def code(self) -> int:
+        """
+         Error code from analytics service.
+        """
+    @property
+    def server_message(self) -> str:
+        """
+         Response message from analytics service.
+        """
+
+QueryNotFoundException
+Thrown if the analytics service returns HTTP status code 404.  Currently only applies to the server async query requests API.
+
+NOTE: QueryNotFound is not raised in all scenarios where the SDK might receive a HTTP status code 404.  See API methods below for details on when QueryNotFound should be raised.
+
+class QueryNotFoundError(AnalyticsError):
+    """
+     Indicates the analytics service returned a HTTP Status 404 Not Found.
+    """
+
+Custom and Platform Exceptions
+The Analytics SDK should follow the same guidelines outlined in the Columnar Error Handling and retries RFC.
+HTTP Response Body
+When handling errors from the analytics service, the expectation is that the response body will be JSON compliant and contain an errors array.  If the response body is not JSON compliant or does not contain an errors array, an AnalyticsException should be raised.
+
+Example of a minimal analytics service response indicating an error:
+{
+  "errors": [
+    {
+      "code": 123,
+      "msg": "Oh no, not again.",
+      "retriable": false
+    }
+  ]
+}
+Exceptions from HTTP library
+All exceptions thrown by the HTTP library must not be propagated to the user.  Exceptions should be handled internally and translated to the appropriate platform or AnalyticsException.  In the case where the  HTTP library’s exception should be translated to an AnalyticsException the HTTP library’s exception should be a part of the error context.
+
+Error Context
+The Analytics SDK should follow the same guidelines outlined in the Columnar Error Handling and retries RFC.
+
+Retries
+See Appendix A for a conceptual guide on the retry logic.
+
+The Analytics SDK should retry a request when the request is eligible to retry and the number of request attempts has not exceeded the MaxRetries limit. The SDK should calculate an exponential back-off to use as a delay between each retry attempt (see the Backoff Calculation section for more details).
+MaxRetries Limit
+The MaxRetries limit defaults to 7 and is user configurable at both the cluster and request level.
+
+The MaxRetries limit applies only to retries on top of the initial attempt. .  For instance, a request that retries on a connection failure and then retries from a query error means the next retry attempt is 2 (0: initial attempt with a connection failure, 1: next attempt with query error; 2: next attempt).
+Retry Eligibility
+A request is eligible for retry when the request falls into one of the categories below:
+DNS failures and Connection failures
+Connection failures specifically refers to failures when dialing the TCP connection, not any read/write errors thereafter.  This would include a connection timeout.
+Analytics service error response where all errors indicated to be retriable
+The SDK should follow the retry guidelines outlined in the Columnar Error Handling and retries RFC to determine if a response from the analytics service is eligible for retries.
+503 HTTP Status Code
+
+NOTE: Credential errors are returned by the analytics service as a normal non-retriable error and thus should not be retried by the SDK (this behavior is notably different from Operational SDKs).
+Retry Limited Exceeded
+See Appendix A for a conceptual guide on the retry logic.
+
+If a request fails due to exceeding the MaxRetries, the SDK should raise the error from the most recent attempt. If the error to be raised is an AnalyticsException the error context should include the error from the most recent attempt. 
+
+If possible, the number of attempts should be included as part of the error context.
+Timeout Exceeded
+See Appendix A for a conceptual guide on the retry logic.
+
+If a request fails due to exceeding the QueryTimeout, a TimeoutException should be raised. The error context should include the error from the most recent attempt. If possible, the number of attempts should also be included as part of the error context.
+
+HTTP Status Codes
+As the Analytics SDK is a lightweight wrapper over an HTTP client there are certain HTTP status codes that should be retried:
+5xx: Server error
+503 Service Unavailable
+
+Backoff Calculation
+In between retries, the SDK should use a capped exponential backoff with full jitter, starting at 100 milliseconds, with an exponent of 2 and capped at 1 minute. If the calculated backoff would exceed the timeout deadline, the SDK should immediately report a timeout instead of waiting for the backoff duration to elapse.
+
+Server Async Requests SDK API
+Overview
+Provide an API that intuitively “guides” the end user in the correct direction when working through the various stages of the async operation.
+Note that an API for server asynchronous operations is a new concept for SDKs.
+The API provides objects that represent the various “stages” in the path of query execution on the server (or at least the “stages” relevant to the client).  Each object provides a mechanism to move to the next “stage” once the next “stage” becomes available.
+The API is an extension of the previously defined API.  It is not a stand-alone API or new client.
+
+Supporting Documentation
+
+Async Server Requests API PRD
+Appending B: Asynchronous Server Request curl Commands
+
+Cluster and Scope
+The server async request API adds two additional methods on the cluster and scope objects.
+
+type [Cluster | Scope] {
+    // ... previous defined logic
+    StartQuery(statement string, [options StartQueryOptions]) QueryHandle
+}
+
+StartQuery
+Signature
+StartQuery(statement string, [options StartQueryOptions]) QueryHandle
+Implementation
+Request
+Sends an HTTP request to the server.  The operation must include mode in the request body. The value of the mode must be set to async. The operation must return a new QueryHandle object.
+
+StartQueryOptions
+The StarQueryOptions block should include the same options provided in QueryOptions except for the Deserializer which must not be included. StartQueryOptions must not inherit from QueryOptions.
+
+See Columnar API Foundation RFC for details around other options in the StartQueryOptions.
+
+type StartQueryOptions {
+    ClientContextID(string) StartQueryOptions
+    Parameters(object) StartQueryOptions
+    Parameters(array) StartQueryOptions
+    ReadOnly(bool) StartQueryOptions
+    ScanConsistency(QueryScanConsistency) StartQueryOptions
+    Raw(object) StartQueryOptions
+    Timeout(duration) StartQueryOptions
+    MaxRetries(int) StartQueryOptions // **VOLATILE**
+}
+
+
+Response
+The SDK should use the requestID and the handle properties in the response when creating the QueryHandle object to return.
+Other information in the response (e.g. metrics) are not currently used.
+
+Errors and Retries:
+Errors and Retries must work the same as errors and retries for ExecuteQuery().  See Error Handling and Retries section for details.
+
+If the server provides a response that is not indicated as an error and does not include the requestID or the handle, an AnalyticsException should be raised. The error message should indicate which required properties are missing.
+
+Headers
+content-type:application/json
+Method
+POST
+Path
+/api/v1/request
+Response
+
+
+{
+        "requestID": "8fb94489-dcd7-466d-8639-cb02144c3f79",
+        "status": "queued",
+        "handle": "/api/v1/request/status/8fb94489-dcd7-466d-8639-cb02144c3f79/12-0",
+        "plans":{},
+        "metrics": {
+                "elapsedTime": "30.061476ms",
+                "compileTime": "11.792157ms",
+                "queueWaitTime": "0ns"
+        }
+}
+
+Following the example response body, the QueryHandle object should have the following for its RequestId and Handle properties:
+QueryHandle.RequestId = 8fb94489-dcd7-466d-8639-cb02144c3f79
+QueryHandle.Handle = /api/v1/request/status/8fb94489-dcd7-466d-8639-cb02144c3f79/12-0
+
+QueryHandle
+
+type QueryHandle {
+    // Properties
+    // NOTE:  These are private
+    handle string
+    requestId string
+
+    // Methods
+    FetchStatus([options FetchStatusOptions]) QueryStatus
+    Cancel([options CancelOptions])
+}
+
+FetchStatus
+Signature
+FetchStatus([options FetchStatusOptions]) QueryStatus
+Implementation
+Request
+Sends an HTTP request to the server to get the status of the query.
+
+FetchStatusOptions
+Optional options block that can be used as placeholder for potential options in the future.
+
+Response
+The operation should return a new QueryStatus instance unless an exception should be raised.  See Errors and Retries section below for details on when the SDK should raise an exception.
+
+Errors and Retries:
+If the server provides a response that indicates an error has occurred, the expectation is that the response body will contain an errors array.  The errors array should be processed and handled as outlined in the Error Handling and Retries section.
+
+If the response body is not JSON compliant or does not contain an errors array, an AnalyticsException should be used.
+
+If a HTTP Status Code 404 Not Found is received, the SDK should raise a QueryNotFoundException.
+
+Other
+Other information in the response (metrics, partitions, etc.) are only represented in the QueryStatus.ToString() and are otherwise not used. See QueryStatus for more information.
+
+Method:
+GET
+Path: 
+/api/v1/request/status/{requestID}/{handleID}
+Response:
+Running:
+NOTE: Must be using a 2.2.x version of the server otherwise only the status property is returned.
+
+{
+        "status": "running",
+        "metrics": {
+                "elapsedTime": "10.582s",
+                "executionTime": "10.477s",
+                "compileTime": "105ms",
+                "queueWaitTime": "0ns"
+        },
+        "createdAt": "2026-04-15T23:22:19.246Z"
+}
+
+
+
+Success:
+{
+        "status": "success",
+        "handle": "/api/v1/request/result/8fb94489-dcd7-466d-8639-cb02144c3f79/12-0",
+        "resultCount": 100,
+        "partitions": [{
+                "handle": "/api/v1/request/result/8fb94489-dcd7-466d-8639-cb02144c3f79/12-0/0",
+                "resultCount": 100
+        }
+        ],
+                "resultSetOrdered": false,
+        "metrics": {
+                "elapsedTime": "607.586µs",
+                "executionTime": "50.195959551s",
+                "compileTime": "11.792157ms",
+                "queueWaitTime": "0ns",
+                "processedObjects": 0
+        },
+        "createdAt": "2026-03-16T17:15:40.850Z"
+}
+
+Fatal:
+{
+  "status": "fatal",
+  "errors": [
+   {
+      "code": 23034,
+      "msg": "Insufficient memory is provided for the join operators, please increase the join memory budget"
+    }
+  ],
+"metrics": {
+    "elapsedTime": "3.1s",
+    "executionTime": "2s",
+    "queueWaitTime": "1s",
+},
+  "createdAt": "2025-09-23T01:01:01Z"
+}
+
+
+Timeout:
+{
+  "status": "timeout",
+  "errors": [
+    {
+      "code": 21002,
+      "msg": "Request timed out",
+      "retriable": true
+    }],
+     "metrics": {
+    "elapsedTime": "3.1s",
+    "executionTime": "2s",
+    "queueWaitTime": "1s",
+},
+  "createdAt": "2025-09-23T01:01:01Z"
+}
+
+The status types the server currently returns are (see the server’s ResultStatus enum):
+queued
+running 
+success
+fatal
+failed
+timeout
+Cancel
+Signature
+Cancel([options CancelOptions])
+Implementation
+Sends an HTTP request to the server. The operation should set the request_id to the QueryHandle.RequestId in the request body.  It is also possible to set the client_context_id to the query’s client_context_id, but request_id is preferred for the asynchronous server requests API.
+
+CancelOptions
+Optional options block that can be used as placeholder for potential options in the future.
+Headers
+content-type: application/x-www-form-urlencoded
+Method
+DELETE
+Path
+/api/v1/active_requests/
+Response
+A server response with a JSON body is not expected.  The SDK should handle the following HTTP status codes:
+2xx & 404:  Success, SDK does nothing.
+503:  SDK should retry request (should be able to use previously defined retry logic).
+401: SDK should raise an InvalidCredentialException.
+
+If the HTTP request times out, the SDK should raise a TimeoutException.
+
+For any other error scenario, the SDK should raise an AnalyticsException.
+
+
+QueryStatus
+
+type QueryStatus {
+    ResultsReady() bool
+    ResultHandle() QueryResultHandle
+    // ToString() should be the canonical mechanism an SDK's language uses to
+    // provide a string representation of an object.
+    ToString() string
+}
+
+ResultsReady
+Signature
+ResultsReady() bool
+Implementation
+Returns true if and only if the response from the /api/v1/request/status/ HTTP request provides a handle for the SDK to retrieve the query results.  Otherwise returns false.  Must not perform network calls.
+
+ResultHandle
+Signature
+ResultHandle() QueryResultHandle
+Implementation
+The operation should return a new QueryResultHandle instance. Must not perform network calls.
+
+If results are not ready, the SDK should raise a platform idiomatic exception if clearly appropriate (e.g. IllegalState, etc.).  Otherwise an AnalyticsException should be raised.
+ToString
+Signature
+ToString() string
+Implementation
+The operation should return a string representation of the query status.  Must not perform network calls.
+The string should include at least the following properties from the server response if they were provided.
+status
+metrics
+
+
+QueryResultHandle
+
+type QueryResultHandle {
+    // Properties
+    // NOTE:  These are private
+    requestId string
+   
+    // Methods
+    FetchResults([options FetchResultsOptions]) QueryResult
+
+    // For languages where a callback based approach to streaming rows 
+    // makes more sense.
+    // An SDK must not implement both FetchResults() and StreamResults()
+    // StreamResults(callback, [options FetchResultsOptions])
+
+    DiscardResults([options DiscardResultsOptions])
+}
+
+FetchResults
+Signature
+FetchResults([options FetchResultsOptions]) QueryResult
+Implementation
+Request
+Sends an HTTP request to the server.
+
+FetchResultsOptions
+
+type FetchResultsOptions {
+    Deserializer(Deserializer) FetchResultsOptions
+}
+
+
+Response
+The SDK should return a QueryResult which is the mechanism the application will use to stream query rows.  The behavior of the QueryResult (and the response from the server) should be the same as in the synchronous query API.
+
+Errors and Retries
+If the server provides a response that indicates an error has occurred, the expectation is that the response body will contain an errors array.  The errors array should be processed and handled as outlined in the Error Handling and Retries section.
+
+If the response body is not JSON compliant or does not contain an errors array, an AnalyticsException should be used.
+
+If a HTTP Status Code 404 Not Found is received, the SDK should raise a QueryNotFoundException.
+
+Other
+Metadata and metrics should be handled the same as in the synchronous query API.  The QueryResultHandle should already have access to the requestID so it is not expected that the server response contains the requestID.
+
+Method
+GET
+Path
+/api/v1/request/result/{requestID}/{handleID}
+Response
+
+{
+        "results": [ ... ],
+        "metrics": {
+                "elapsedTime": "72.323µs",
+                "executionTime": "50.12914524s",
+                "compileTime": "12.096728ms",
+                "queueWaitTime": "0ns",
+                "resultCount": 100,
+                "resultSize": 300,
+                "processedObjects": 0
+        },
+        "createdAt": "2026-03-16T20:34:45.861Z"
+}
+
+DiscardResults
+Signature
+DiscardResults([options DiscardResultsOptions])
+Implementation
+Sends an HTTP request to the server.
+
+DiscardResultsOptions
+Optional options block that can be used as placeholder for potential options in the future.
+Method
+DELETE
+Path
+/api/v1/request/result/{requestID}/{handleID}
+Response
+A server response with a JSON body is not expected.  The SDK should handle the following HTTP status codes:
+2xx & 404:  Success, SDK does nothing.
+503:  SDK should retry request (should be able to use previously defined retry logic).
+401: SDK should raise an InvalidCredentialException.
+
+If the HTTP request times out, the SDK should raise a TimeoutException.
+
+For any other error scenario, the SDK should raise an AnalyticsException.
+SDK Specifics
+Go
+Go exposes a ErrServiceUnavailable error value to surface the 503 http response case.
+Non-2xx status codes are not error cases from the Go http library
+Go does not expose a Timeout on QueryOptions, instead utilizing context.Context for timeouts/cancellation - as is idiomatic to the language.
+Out of Scope
+The following topics are considered to be out of scope until future iterations of the Analytics SDK determines the need for the feature based on market and/or user demand.
+HTTP/2
+Cipher Suites
+QueryException subclasses (Management API Exceptions, etc.)
+Management APIs
+
+Server Async Query Requests
+Tunable resultTTL
+Serialization and result partitions
+NOTE:  We should think through serialized scope-level query handles that are then deserialized on the cluster (and vice-versa)
+
+Changelog
+2026-05-01 - Revision #2 (Jared Casey) Added Server Asynchronous Requests API
+2025-07-09 - Revision #1 (Jared Casey)
+
+Signoff
+
+Language
+Team Member
+Signoff Date
+Revision
+Node.js
+Jared Casey
+
+
+
+
+Go
+Charles Dixon
+
+
+
+
+PHP
+Sergey Avseyev
+
+
+
+
+Python
+Jared Casey
+
+
+
+
+Scala
+Graham Pople
+
+
+
+
+.NET
+Jeffry Morris
+
+
+
+
+Java
+David Nault
+2025-07-09
+1
+C++
+Sergey Avseyev
+
+
+
+
+Ruby
+Sergey Avseyev
+
+
+
+
+Kotlin
+David Nault
+2025-07-09
+1
+
+
+
+Appendix A: Retry Logic Pseudo Code
+Note that the pseudo code below is not specifying how the SDK should implement the retry logic.  Instead it is meant to provide a framework to understand how the SDK should approach retries.
+
+
+class AnalyticsError {
+  // This may not be a field that is publicly exposed, but
+  // must be included in the error context somehow.
+  cause: Error;
+}
+
+class TimeoutError extends AnalyticsError {
+  // This may actually be represented through error context
+  // or through stringification in some SDKs.  It is included
+  // in this pseudocode to make it easier to reason about below.
+  lastError: Error;
+}
+
+function isRetriable(err: Error): boolean {
+  // - DNS failures and Connection failures are retriable
+  // - Query responds, and response has retriable=true on all errors is retriable.
+  // - 503 Status Code is retriable
+  // - Otherwise, not retriable
+
+  // NOTES:
+  // Credential errors are returned by query as a normal error with
+  //   retriable=false, and thus should not be retried by the SDKs
+  //   (contrary to the behaviour in Operational).
+  // Connection failures specifically refers to failures when dialing
+  //   the TCP connection, not any read/write errors thereafter.
+}
+
+function query(...): any {
+  // maxRetries should be 6 for 7 total attempts, note the use of <=
+  //   in the for loop which is important to avoid overflowing in the
+  //  'retry forever' use case (don't use <maxRetries+1).
+  let maxRetries = 6;
+
+  let lastErr = null;
+  for (let retryIdx = 0; retryIdx <= maxRetries; ++retryIdx) {
+    try {
+      return this._query(...);
+    } catch (e) {
+      if (e instanceof TimeoutError) {
+        e.LastError = lastErr;
+        throw e;
+      }
+
+      if (!isRetriable(e)) {
+        throw e;
+      }
+
+      lastErr = e;
+    }
+
+    let nextAttemptTime = calculateBackoffRetry(...)
+    if (nextAttemptTime >= requestDeadline) {
+      throw TimeoutError({
+        lastError: lastErr,
+      });
+    }
+
+    sleepUntil(nextAttemptTime);
+  }
+
+  throw lastErr;
+}
+ 
+
+Appendix B: Asynchronous Server Request curl Commands
+Setup (save some typing)
+Save your endpoint
+export ENDPOINT=https://192.168.107.129:18095
+Save the query
+cat << EOF > payload.json
+{
+  "statement": "SELECT VALUE SLEEP(\"x\", 500) FROM RANGE(1, 100) AS id;",
+  "mode": "async"
+}
+EOF
+
+
+Start a query
+curl -v -k -u Administrator:password -H "content-type: application/json" -d @payload.json $ENDPOINT/api/v1/request
+
+If you want to save the handle (reduce even more typing):
+export HANDLE=$(
+  curl -s \
+    -X POST \
+    -u Administrator:password \
+    -H "content-type: application/json" \
+    -d @payload.json \
+    $ENDPOINT/api/v1/request \
+  | jq -r 'select(.status == "queued") | .handle | ltrimstr("/api/v1/request/status/")'
+)
+
+Can also save the requestID (useful for cancelling the query):
+export REQUEST_ID="${HANDLE%%/*}"
+
+If you want to add a client_context_id:
+Can also use export CCID=$(uuidgen)
+
+export CCID=$(openssl rand -hex 16)
+
+export RAW_RESPONSE=$(jq --arg id "$CCID" '.client_context_id = $id' payload.json | \
+  curl -s -k -u Administrator:password \
+  -H "content-type: application/json" \
+  $ENDPOINT/api/v1/request \
+  -d @-)
+
+export STATUS=$(echo "$RAW_RESPONSE" | jq -r '.status')
+export HANDLE=$(echo "$RAW_RESPONSE" | jq -r 'select(.status == "queued") | .handle | ltrimstr("/api/v1/request/status/")')
+
+Get the query status
+If you didn’t save the handle, refer back to the start query response body.
+curl -v -k -u Administrator:password $ENDPOINT/api/v1/request/status/$HANDLE
+
+Get the query results
+If you didn’t save the handle, refer back to the start query response body.
+curl -v -k -u Administrator:password $ENDPOINT/api/v1/request/result/$HANDLE
+
+Discard the query results
+If you didn’t save the handle, refer back to the start query response body.
+curl -v -k -X DELETE -u Administrator:password $ENDPOINT/api/v1/request/result/$HANDLE
+
+Get active requests
+curl -v -k -u Administrator:password $ENDPOINT/api/v1/active_requests
+
+Cancel the query
+Using the requestID:
+If you didn’t save the requestID, refer back to the start query response body.
+curl -X DELETE -v -k -u Administrator:password -H "content-type: application/x-www-form-urlencoded" $ENDPOINT/api/v1/active_requests -d "request_id=$REQUEST_ID"
+
+Using the client_context_id:
+If you didn’t save the CCID, refer to what was sent in the start query request.
+curl -X DELETE -v -k -u Administrator:password -H "content-type: application/x-www-form-urlencoded" $ENDPOINT/api/v1/active_requests -d "client_context_id=$CCID"
+
+
+
+
