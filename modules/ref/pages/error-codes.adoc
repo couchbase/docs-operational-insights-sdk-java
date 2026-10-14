@@ -37,7 +37,7 @@ For a full list of error codes, see xref:{version-server}@server:analytics:error
 ////
 
 
-
+////
 === InvalidCredentialException
 
 Thrown if the Analytics Service returns HTTP status code 401 or analytics error code 20000
@@ -714,7 +714,7 @@ curl -X DELETE -v -k -u Administrator:password -H "content-type: application/x-w
 Using the client_context_id:
 If you didn’t save the CCID, refer to what was sent in the start query request.
 curl -X DELETE -v -k -u Administrator:password -H "content-type: application/x-www-form-urlencoded" $ENDPOINT/api/v1/active_requests -d "client_context_id=$CCID"
-
+////
 
 
 
