@@ -56,9 +56,9 @@ Note, you can still use this API with 2.2+ releases of Operational Insights, in 
 
 [source,java]
 ----
-import com.couchbase.analytics.client.java.Cluster;
-import com.couchbase.analytics.client.java.Credential;
-import com.couchbase.analytics.client.java.QueryResult;
+import com.couchbase.insights.client.java.Cluster;
+import com.couchbase.insights.client.java.Credential;
+import com.couchbase.insights.client.java.QueryResult;
 
 import java.util.List;
 

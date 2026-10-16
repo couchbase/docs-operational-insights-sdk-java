@@ -27,9 +27,9 @@ The examples below use these imports:
 
 [source,java]
 ----
-import com.couchbase.analytics.client.java.Cluster;
-import com.couchbase.analytics.client.java.Credential;
-import com.couchbase.analytics.client.java.QueryResult;
+import com.couchbase.insights.client.java.Cluster;
+import com.couchbase.insights.client.java.Credential;
+import com.couchbase.insights.client.java.QueryResult;
 ----
 
 A connection to an Operational Insights cluster is represented by a `Cluster` object.

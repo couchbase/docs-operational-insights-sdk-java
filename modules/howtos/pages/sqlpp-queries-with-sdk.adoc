@@ -103,7 +103,7 @@ cluster.executeStreamingQuery(
 [[server-asynchronous-api]]
 == {async-server-api-feature-name}
 
-Enterprise Analytics Server 2.2 adds a {async-server-api-feature-name}.
+Operational Insights Server 2.2 adds a {async-server-api-feature-name}.
 The SDK will send a request, poll for results, and then fetch once the result is available.
 
 
@@ -136,4 +136,4 @@ The following table lists them all:
 == Further Information
 
 The xref:analytics:sqlpp:1_intro.adoc[{sqlpp} for Analytics Reference]
-offers a complete guide to the {sqlpp} language for both of our analytics services, including all of the latest additions.
+offers a complete guide to the {sqlpp} language for both of our analytics services, CBAS and Operational Insights, including all of the latest additions.
