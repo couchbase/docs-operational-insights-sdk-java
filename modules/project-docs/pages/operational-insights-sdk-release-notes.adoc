@@ -37,3 +37,9 @@ any changes to expected behavior are noted in the release notes that follow.
 
 https://docs.couchbase.com/sdk-api/couchbase-operational-insights-java-client-1.0.0[API Reference]
 // end::all[]
+
+
+
+== Previous SDKs
+
+See the xref:java-analytics-sdk:project-docs:analytics-sdk-release-notes.adoc[Analytics SDK release notes] for earlier developments.
