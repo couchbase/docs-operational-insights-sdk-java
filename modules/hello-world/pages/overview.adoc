@@ -15,7 +15,7 @@ TIP: Connecting to a xref:enterprise-analytics:intro:intro.adoc[Operational Insi
 
 {empty} +
 
-== icon:database[] Using Your Analytics Cluster
+== icon:database[] Using Your Operational Insights Cluster
 
 How-to guides and tutorials to help you start your development journey with Operational Insights and the Java SDK.
 
@@ -82,7 +82,7 @@ Useful resources to help support your development experience with Operational In
 
 [.column]
 .Reference
-* https://docs.couchbase.com/sdk-api/couchbase-analytics-java-client/[API Reference]
+* https://docs.couchbase.com/sdk-api/couchbase-operational-insights-java-client/[API Reference]
 * xref:ref:client-settings.adoc[]
 * xref:ref:error-codes.adoc[]
 * xref:ref:glossary.adoc[Glossary]
@@ -96,4 +96,3 @@ Useful resources to help support your development experience with Operational In
 ++++
 </div>
 ++++
-
