@@ -10,7 +10,7 @@
 // include::{version-common}@analytics-sdk:shared:partial$error-ref.adoc[tag=intro]
 
 
-An `AnalticsException` is thrown when an interaction with the Analytics cluster fails.
+An `AnalticsException` is thrown when an interaction with the Operational Insights cluster fails.
 
 
 == InsightsException
