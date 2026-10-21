@@ -1,5 +1,5 @@
 = Operational Insights SDK Release Notes
-:description: Release notes, brief installation instructions, and download archive for the Enterprise Analytics Java Client.
+:description: Release notes, brief installation instructions, and download archive for the Operational Insights Java Client.
 :navtitle: Release Notes
 :page-toclevels: 2
 
